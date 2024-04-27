@@ -1,0 +1,657 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Chameerajay
+// this is my own version, dont copy without a proper Right. 
+
+
+//@version=5
+indicator("FIBONACCI INDICATOR", "FI", true, max_lines_count=500, max_labels_count=50, max_bars_back = 500)
+//Main
+fibMultification = input.float(2.618, "Fibonacci Mutification", inline = "Main Line") 
+commonSource = input.source(close,"| Src", inline = "Main Line")
+//ON OFF
+buySellSignal = input.bool(true,"B & S Signal |",inline = "Settings")
+swingTrendOnOff = input.bool(false,"Swing Trend |",inline = "Settings")
+onExtream = input(true, 'Extream Zones |', inline = "Settings")
+onRSIZone = input(true, 'RSI Zones |', inline = "Settings")
+srLinesOn = input(true, 'SR Lines', inline = "Settings")
+
+
+mtfLevelD  = input.bool(false, "D" , inline = "MTF Lvls" , group = "MTF Lvls")
+mtfLevelW  = input.bool(false, "W" , inline = "MTF Lvls", group = "MTF Lvls")
+mtfLevelM  = input.bool(false, "M" , inline = "MTF Lvls", group = "MTF Lvls")
+mtfLevel4h  = input.bool(false, "4H" , inline = "MTF Lvls", group = "MTF Lvls")
+// mtfLevel1h  = input.bool(true, "1H" , inline = "MTF Lvls", group = "MTF Lvls")
+
+greenCandle = (open < close)
+redCandle = (open > close)
+candleMid = ((high - low)/2 + low)
+
+//Inputs
+ma(source, length, type) =>
+    switch type
+        "SMA" => ta.sma(source, length)
+        "Bollinger Bands" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        "VWMA" => ta.vwma(source, length)
+
+maTypeInput = input.string("SMA", title="MA Type", options=["SMA", "Bollinger Bands", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group="MA Settings", inline = "MA")
+
+//EMA 3 LINES
+onMaF = input.bool(true, "On Fast", inline = "MA ON")
+onMaM = input.bool(false, "On Medium", inline = "MA ON")
+onMaS = input.bool(false, "On Slow", inline = "MA ON")
+
+maFLengthInput = input.int(50,"Fast", inline = "MA")
+maMLengthInput = input.int(100,"Medium", inline = "MA")
+maSLengthInput = input.int(200,"Slow", inline = "MA")
+
+MAF = ma(close, maFLengthInput, maTypeInput)
+MAM = ma(close, maMLengthInput, maTypeInput)
+MAS= ma(close, maSLengthInput, maTypeInput)
+
+plot(onMaF?MAF:na, "Fast MA", color.new(#000000, 60))
+plot(onMaM?MAM:na, "Mid MA", color.new(#ff07ff, 40))
+plot(onMaS?MAS:na, "Fast SLOW", color.new(color.red,60))
+
+//Core Settings
+//Core EMA Length
+ema1 = input.int(21,"Config 9", inline = "strategy config", group = "Lvls For backtest")
+ema2 = input.int(6,"Config 2", inline = "strategy config", group = "Lvls For backtest")
+ema3 = input.int(1,"Config 3", inline = "strategy config", group = "Lvls For backtest")
+
+//Core MA Method with fib
+fibLine = ta.ema((math.abs(close - close[1])),ema1)* fibMultification
+fibLine2 = ta.ema((fibLine),ema2) //k
+sup = math.abs(ta.ema((close - fibLine2),ema3))
+res = math.abs(ta.ema((close + fibLine2),ema3))
+// sup = math.abs(close - fibLine2)
+// res = math.abs(close + fibLine2)
+
+
+//Core BackEnd
+var float  x = 0
+var float newSup = 0
+var float newRes = 0
+
+if(sup  > x)
+    x := sup 
+    newSup := x - fibLine2
+    newRes := x + fibLine2
+else if (res < x)
+    x := res
+    newSup := x - fibLine2
+    newRes := x + fibLine2
+
+var float myTrend = na
+var float myTrend2 = na
+var float myTrendx = na
+trendColor = color.new(color.white,0)
+
+if(newRes[2] < close[1] and high[1] < close)
+    myTrend :=  newSup
+	myTrend2 :=  newRes
+	myTrendx :=  x
+	trendColor := color.new(color.green,90) 
+
+else if (newSup[2] > close[1] and low[1] > close) 
+    myTrend :=  newRes
+	myTrend2 :=  newSup
+	myTrendx :=  x
+	trendColor := color.new(color.red,90)
+
+upTrend =    plot(myTrend, "Up Trend",  myTrendx > myTrend? color.new(color.green, 50):na , style = plot.style_line)
+downTrend =  plot(myTrend, "Down Trend", myTrendx < myTrend? color.new(color.red, 50):na,   style = plot.style_line)
+upTrend2 =    plot(myTrend2, "Up Trend",  srLinesOn? myTrendx > myTrend2? color.new(color.green, 50):na :na, style = plot.style_line)
+downTrend2 =  plot(myTrend2, "Down Trend", srLinesOn? myTrendx < myTrend2? color.new(color.red, 50):na :na,   style = plot.style_line)
+bodyMiddle = plot(barstate.isfirst ? na : myTrendx, "Body Middle",style = plot.style_linebr, color = color.new( color.black, 100))
+
+float rLine = 0
+float sLine = 0 
+
+if(myTrend > myTrend2)
+	trendColor := color.new(color.red,90)
+	rLine := myTrend
+	sLine := myTrend2
+
+else if (myTrend < myTrend2)
+	trendColor := color.new(color.green,90)
+	rLine := myTrend2
+	sLine := myTrend
+
+fill(bodyMiddle, upTrend,  trendColor, fillgaps = false)
+fill(bodyMiddle, downTrend,trendColor, fillgaps = false)
+
+
+// Plotting lines
+var line_M = line.new(na, na, na, na, width=1, color=color.blue)
+var line_R = line.new(na, na, na, na, width=1, color=  color.new(color.red,0))
+var line_S = line.new(na, na, na, na, width=1, color= color.new(color.green,0))
+
+
+//Monthly
+var line_MM = line.new(na, na, na, na, width=1, color=color.blue)
+var line_RM = line.new(na, na, na, na, width=1, color=color.red)
+var line_SM = line.new(na, na, na, na, width=1, color=color.green)
+
+//Weekly
+var line_MW = line.new(na, na, na, na, width=1, color=color.blue)
+var line_RW = line.new(na, na, na, na, width=1, color=color.red)
+var line_SW = line.new(na, na, na, na, width=1, color=color.green)
+
+//Daily
+var line_MD = line.new(na, na, na, na, width=1, color=color.blue)
+var line_RD = line.new(na, na, na, na, width=1, color=color.red)
+var line_SD = line.new(na, na, na, na, width=1, color=color.green)
+
+//4H
+var line_M4H = line.new(na, na, na, na, width=1, color=color.blue)
+var line_R4H = line.new(na, na, na, na, width=1, color=color.red)
+var line_S4H = line.new(na, na, na, na, width=1, color=color.green)
+
+
+// Update the lines with extended values
+line.set_xy1(line_M, bar_index + 10, myTrendx)
+line.set_xy2(line_M, bar_index - 2, myTrendx)
+
+line.set_xy1(line_R, bar_index + 10, rLine)
+line.set_xy2(line_R, bar_index - 2, rLine)
+
+line.set_xy1(line_S, bar_index + 10, sLine)
+line.set_xy2(line_S, bar_index - 2, sLine)
+
+
+// Request data from the higher time frame
+MM = request.security(syminfo.tickerid, "M", myTrendx)
+MR = request.security(syminfo.tickerid, "M", rLine)
+MS = request.security(syminfo.tickerid, "M", sLine)
+
+WM = request.security(syminfo.tickerid, "W", myTrendx)
+WR = request.security(syminfo.tickerid, "W", rLine)
+WS = request.security(syminfo.tickerid, "W", sLine)
+
+DM = request.security(syminfo.tickerid, "D", myTrendx)
+DR = request.security(syminfo.tickerid, "D", rLine)
+DS = request.security(syminfo.tickerid, "D", sLine)
+
+h4M = request.security(syminfo.tickerid, "240", myTrendx)
+h4R = request.security(syminfo.tickerid, "240", rLine)
+h4S = request.security(syminfo.tickerid, "240", sLine)
+
+//MTF multiplier
+mtfMultiplierM = timeframe.isminutes and timeframe.multiplier  < (1*60*24*28)
+mtfMultiplierW = timeframe.isminutes and timeframe.multiplier  < (1*60*24*7)
+mtfMultiplierD = timeframe.isminutes and timeframe.multiplier  < (60*24)
+mtfMultiplier4H = timeframe.isminutes and timeframe.multiplier  < (60*4)
+
+// Update the lines with extended values
+//Monthly
+line.set_xy1(mtfLevelM?mtfMultiplierM? line_MM:na:na, bar_index + 17, MM)
+line.set_xy2(mtfLevelM?mtfMultiplierM? line_MM:na:na, bar_index - 17, MM)
+
+line.set_xy1(mtfLevelM?mtfMultiplierM? line_SM:na:na, bar_index + 17, MS)
+line.set_xy2(mtfLevelM?mtfMultiplierM? line_SM:na:na, bar_index - 17, MS)
+
+line.set_xy1(mtfLevelW?mtfMultiplierM? line_RM:na:na, bar_index + 17, MR)
+line.set_xy2(mtfLevelW?mtfMultiplierM? line_RM:na:na, bar_index - 17, MR)
+
+
+//Weekly
+line.set_xy1(mtfLevelW?mtfMultiplierW? line_MW:na:na, bar_index + 17, WM)
+line.set_xy2(mtfLevelW?mtfMultiplierW? line_MW:na:na, bar_index - 17, WM)
+
+line.set_xy1(mtfLevelW?mtfMultiplierW? line_SW:na:na, bar_index + 17, WS)
+line.set_xy2(mtfLevelW?mtfMultiplierW? line_SW:na:na, bar_index - 17, WS)
+
+line.set_xy1(mtfLevelW?mtfMultiplierW? line_RW:na:na, bar_index + 17, WR)
+line.set_xy2(mtfLevelW?mtfMultiplierW? line_RW:na:na, bar_index - 17, WR)
+
+//Daily
+line.set_xy1(mtfLevelD?mtfMultiplierD? line_MD:na:na, bar_index + 17, DM)
+line.set_xy2(mtfLevelD?mtfMultiplierD? line_MD:na:na, bar_index - 17, DM)
+
+line.set_xy1(mtfLevelD?mtfMultiplierD? line_SD:na:na, bar_index + 17, DS)
+line.set_xy2(mtfLevelD?mtfMultiplierD? line_SD:na:na, bar_index - 17, DS)
+
+line.set_xy1(mtfLevelD?mtfMultiplierD? line_RD:na:na, bar_index + 17, DR)
+line.set_xy2(mtfLevelD?mtfMultiplierD? line_RD:na:na, bar_index - 17, DR)
+
+//4h
+line.set_xy1(mtfLevel4h?mtfMultiplier4H? line_M4H:na:na, bar_index + 17, h4M)
+line.set_xy2(mtfLevel4h?mtfMultiplier4H? line_M4H:na:na, bar_index - 17, h4M)
+
+line.set_xy1(mtfLevel4h?mtfMultiplier4H? line_S4H:na:na, bar_index + 17, h4S)
+line.set_xy2(mtfLevel4h?mtfMultiplier4H? line_S4H:na:na, bar_index - 17, h4S)
+
+line.set_xy1(mtfLevel4h?mtfMultiplier4H? line_R4H:na:na, bar_index + 17, h4R)
+line.set_xy2(mtfLevel4h?mtfMultiplier4H? line_R4H:na:na, bar_index - 17, h4R)
+
+// Add labels to the lines
+//all
+label label_M = label.new(bar_index + 13, myTrendx, "(M) " + str.tostring(myTrendx), textcolor =color.blue, style=label.style_none, size=size.small)
+label label_S = label.new(bar_index + 13, sLine, "(S) " + str.tostring(sLine), textcolor=color.green, style=label.style_none, size=size.small)
+label label_R = label.new(bar_index + 13, rLine, "(R) " + str.tostring(rLine), textcolor=color.red, style=label.style_none, size=size.small)
+
+//Monthly
+label label_MM = label.new(bar_index + 24, MM, mtfLevelW?mtfMultiplierW? "(MM) " + str.tostring(MM):na:na, textcolor=color.blue, style=label.style_none, size=size.small)
+label label_MS = label.new(bar_index + 24, MS, mtfLevelW?mtfMultiplierW? "(MS) " + str.tostring(MS):na:na, textcolor=color.green, style=label.style_none, size=size.small)
+label label_MR = label.new(bar_index + 24, MR, mtfLevelW?mtfMultiplierW? "(MR) " + str.tostring(MR):na:na, textcolor=color.red, style=label.style_none, size=size.small)
+
+//Weekly
+label label_WM = label.new(bar_index + 24, WM, mtfLevelW?mtfMultiplierW? "(WM) " + str.tostring(WM):na:na, textcolor=color.blue, style=label.style_none, size=size.small)
+label label_WS = label.new(bar_index + 24, WS, mtfLevelW?mtfMultiplierW? "(WS) " + str.tostring(WS):na:na, textcolor=color.green, style=label.style_none, size=size.small)
+label label_WR = label.new(bar_index + 24, WR, mtfLevelW?mtfMultiplierW? "(WR) " + str.tostring(WR):na:na, textcolor=color.red, style=label.style_none, size=size.small)
+
+//daily
+label label_DM = label.new(bar_index + 24, DM, mtfLevelD?mtfMultiplierD? "(DM) " + str.tostring(DM):na:na, textcolor=color.blue, style=label.style_none, size=size.small)
+label label_DS = label.new(bar_index + 24, DS, mtfLevelD?mtfMultiplierD? "(DS) " + str.tostring(DS):na:na, textcolor=color.green, style=label.style_none, size=size.small)
+label label_DR = label.new(bar_index + 24, DR, mtfLevelD?mtfMultiplierD? "(DR) " + str.tostring(DR):na:na, textcolor=color.red, style=label.style_none, size=size.small)
+
+//4h
+label label_h4M = label.new(bar_index + 24, h4M, mtfLevel4h?mtfMultiplier4H? "(4h M) " + str.tostring(h4M):na:na, textcolor=color.blue, style=label.style_none, size=size.small)
+label label_h4S = label.new(bar_index + 24, h4S, mtfLevel4h?mtfMultiplier4H? "(4h S) " + str.tostring(h4S):na:na, textcolor=color.green, style=label.style_none, size=size.small)
+label label_h4R = label.new(bar_index + 24, h4R, mtfLevel4h?mtfMultiplier4H? "(4h R) " + str.tostring(h4R):na:na, textcolor=color.red, style=label.style_none, size=size.small)
+
+
+// Delete previous labels
+label.delete(label_M[1])
+label.delete(label_S[1])
+label.delete(label_R[1])
+
+//Monthly
+label.delete(label_MM[1])
+label.delete(label_MS[1])
+label.delete(label_MR[1])
+
+//Weekly
+label.delete(label_WM[1])
+label.delete(label_WS[1])
+label.delete(label_WR[1])
+
+//daily
+label.delete(label_DM[1])
+label.delete(label_DS[1])
+label.delete(label_DR[1])
+
+//4H
+label.delete(label_h4M[1])
+label.delete(label_h4S[1])
+label.delete(label_h4R[1])
+
+
+
+rsiLengthInput = input.int(14, minval=1, title="RSI Length", group="RSI Settings")
+rsiSourceInput = input.source(close, "Source", group="RSI Settings")
+showDivergence = input.bool(true, title="Show Divergence", group="RSI Settings")
+
+up = ta.rma(math.max(ta.change(rsiSourceInput), 0), rsiLengthInput)
+down = ta.rma(-math.min(ta.change(rsiSourceInput), 0), rsiLengthInput)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+rsiCon = rsi
+
+// Divergence
+lookbackRight = 5
+lookbackLeft = 5
+rangeUpper = 60
+rangeLower = 5
+bearColor = color.orange
+bullColor = color.blue
+textColor = color.white
+noneColor = color.new(color.white, 100)
+
+plFound = na(ta.pivotlow(rsi, lookbackLeft, lookbackRight)) ? false : true
+phFound = na(ta.pivothigh(rsi, lookbackLeft, lookbackRight)) ? false : true
+_inRange(cond) =>
+	bars = ta.barssince(cond == true)
+	rangeLower <= bars and bars <= rangeUpper
+
+//------------------------------------------------------------------------------
+// Regular Bullish
+// rsi: Higher Low
+
+rsiHL = rsi[lookbackRight] > ta.valuewhen(plFound, rsi[lookbackRight], 1) and _inRange(plFound[1])
+
+// Price: Lower Low
+
+priceLL = low[lookbackRight] < ta.valuewhen(plFound, low[lookbackRight], 1)
+bullCondAlert = priceLL and rsiHL and plFound
+bullCond = showDivergence and bullCondAlert
+
+plot(
+     plFound ? close[lookbackRight] : na,
+     offset=-lookbackRight,
+     title="Regular Bullish",
+     linewidth=2,
+     color=(bullCond ? bullColor : noneColor)
+     )
+
+plotshape(
+	 bullCond ? rsi[lookbackRight] : na,
+	 offset=-lookbackRight,
+	 title="Regular Bullish Label",
+	 text=" Div ",
+	 style=shape.labelup,
+	 location=location.belowbar,
+	 color=bullColor,
+	 textcolor=textColor
+	 )
+
+//------------------------------------------------------------------------------
+// Regular Bearish
+// rsi: Lower High
+
+rsiLH = rsi[lookbackRight] < ta.valuewhen(phFound, rsi[lookbackRight], 1) and _inRange(phFound[1])
+
+// Price: Higher High
+
+priceHH = high[lookbackRight] > ta.valuewhen(phFound, high[lookbackRight], 1)
+
+bearCondAlert = priceHH and rsiLH and phFound
+bearCond = showDivergence and bearCondAlert
+
+plot(
+	 phFound ? close[lookbackRight] : na,
+	 offset=-lookbackRight,
+	 title="Regular Bearish",
+	 linewidth=2,
+	 color=(bearCond ? bearColor : noneColor)
+	 )
+
+plotshape(
+	 bearCond ? rsi[lookbackRight] : na,
+	 offset=-lookbackRight,
+	 title="Regular Bearish Label",
+	 text=" Div ",
+	 style=shape.labeldown,
+	 location=location.abovebar,
+	 color=bearColor,
+	 textcolor=textColor
+	 )
+
+alertcondition(bullCondAlert, title='Regular Bullish Divergence', message="Found a new Regular Bullish Divergence, `Pivot Lookback Right` number of bars to the left of the current bar.")
+alertcondition(bearCondAlert, title='Regular Bearish Divergence', message='Found a new Regular Bearish Divergence, `Pivot Lookback Right` number of bars to the left of the current bar.')
+
+
+
+//Bar reaction color
+color rBar  = na
+
+if(myTrendx >= low and  myTrendx < high and myTrendx < close and open > close and myTrend < myTrend2)
+    rBar := color.new(color.blue,10)
+
+else if(myTrendx <= high and myTrendx > low and myTrendx > close and open < close and myTrend > myTrend2)
+    rBar := color.new(#eaff00, 10) 
+
+barcolor(rBar)
+
+//extream zones
+srcRsi = commonSource
+on5 = input(true, 'RSI 50 Line')
+
+r70 = input.int(70, 'OverBought 1', maxval=99, minval=1)
+r30 = input.int(30, 'OverSold 1', maxval=99, minval=1)
+r80 = input.int(80, 'OverBought 2', maxval=99, minval=1)
+r20 = input.int(20, 'OverSold 2', maxval=99, minval=1)
+r90 = input.int(90, 'OverBought 3', maxval=99, minval=1)
+r10 = input.int(10, 'OverSold 3', maxval=99, minval=1)
+
+smoothRsi = true
+
+// up = ta.rma(math.max(ta.change(srcRsi), 0), rsiLengthInput)
+// down = ta.rma(-math.min(ta.change(srcRsi), 0), rsiLengthInput)
+// rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - 100 / (1 + up / down)
+a = 1 / rsiLengthInput
+rc70 = 100 / (100 - r70) - 1
+rc30 = 1 / (100 / (100 - r30) - 1)
+rc80 = 100 / (100 - r80) - 1
+rc20 = 1 / (100 / (100 - r20) - 1)
+rc90 = 100 / (100 - r90) - 1
+rc10 = 1 / (100 / (100 - r10) - 1)
+
+c70e = (1 - a) / a * (rc70 * down - up) + close
+c30e = close - (1 - a) / a * (rc30 * up - down)
+c80e = (1 - a) / a * (rc80 * down - up) + close
+c20e = close - (1 - a) / a * (rc20 * up - down)
+c90e = (1 - a) / a * (rc90 * down - up) + close
+c10e = close - (1 - a) / a * (rc10 * up - down)
+
+c50 = (1 - a) / a * (down - up) + close
+
+lens = math.floor(rsiLengthInput / 3)
+
+c70 = if smoothRsi == true
+    ta.sma(c70e, lens)
+else
+    c70e
+
+c30 = if smoothRsi == true
+    ta.sma(c30e, lens)
+else
+    c30e
+
+c80 = if smoothRsi == true
+    ta.sma(c80e, lens)
+else
+    c80e
+
+c20 = if smoothRsi == true
+    ta.sma(c20e, lens)
+else
+    c20e
+
+c90 = if smoothRsi == true
+    ta.sma(c90e, lens)
+else
+    c90e
+
+c10 = if smoothRsi == true
+    ta.sma(c10e, lens)
+else
+    c10e
+
+
+fibLineEx = ta.ema((math.abs(c70[1] - c30[1])/2),10)* 0.382
+fibLineEx2 = ta.ema((close + fibLineEx),ema2)
+supEx = ta.ema((c80 - fibLineEx),ema2)
+resEx = ta.ema((c80 + fibLineEx),ema2)
+supEx1 = ta.ema((c20 - fibLineEx),ema2)
+resEx1 = ta.ema((c20 + fibLineEx),ema2)
+
+//Extream zone Core BackEnd
+var float  xEx = 0
+var float newSupEx = 0
+var float newResEx = 0
+var float  xEx1 = 0
+var float newSupEx1 = 0
+var float newResEx1 = 0
+
+if(supEx  > xEx[1] and newRes[2] < close[1] and high[1] < close)
+    xEx := supEx 
+    newSupEx := xEx - fibLineEx
+    newResEx := xEx + fibLineEx
+else if (resEx < xEx[1] and newSup[2] > close[1] and low[1] > close)
+    xEx := resEx
+    newSupEx := xEx - fibLineEx
+    newResEx := xEx + fibLineEx
+
+if(supEx1  > xEx1[1] and newRes[2] < close[1] and close[1] < close)
+    xEx1 := supEx1 
+    newSupEx1 := xEx1 - fibLineEx
+    newResEx1 := xEx1 + fibLineEx
+else if (resEx1 < xEx1[1]  and newSup[2] > close[1] and close[1] > close)
+    xEx1 := resEx1
+    newSupEx1 := xEx1 - fibLineEx
+    newResEx1 := xEx1 + fibLineEx
+
+// plot extream zones bottom
+bottomExtreamS = plot(newSupEx,"bottom Extram S", color.new(color.blue,100) )
+bottomExtreamR = plot(newResEx, "bottom Extram R", color.new(color.blue,100))
+
+// plot extream zones top
+topExtreamS =plot(newSupEx1,"TOP Extram S", color.new(color.blue,100))
+topExtreamR =plot(newResEx1,"TOP Extram R", color.new(color.blue,100))
+ 
+resColor = onExtream? color.new(#ffbc12, 80):na
+supColor = onExtream? color.new(#00ffaa, 80):na
+
+fill(bottomExtreamS, bottomExtreamR, resColor, fillgaps = false)
+fill(topExtreamS, topExtreamR, supColor, fillgaps = false)
+
+//RSI Zones
+// Define color variables
+color startColor = color.new(color.green, 80)
+color endColor = color.new(color.red, 80)
+
+rsiZoneBottom = plot(onRSIZone? c30: na, color = color.new(color.black,100))
+rsiZoneTop = plot(onRSIZone? c70: na, color = color.new(color.black,100))
+rsiMA = ta.ema(c50,14)
+rsiMid = plot(rsiMA, color = color.new(color.blue,20), linewidth = 2)
+
+fill(rsiZoneBottom, rsiZoneTop, color.new(color.blue,96), fillgaps = false)
+
+
+
+
+// signalS = greenCandle and (close - open) > (high - close) and redCandle[1] and redCandle[2] and close > high[2]   and (close[1]-low[1])/3 > (high[1] - close[1] ) 
+signalS = low[1] < newResEx1[1] and c30[1] > low[1] and c20[1] < close[1] and (close[1] - low[1]) > (high[1] - open[1]) and greenCandle and redCandle[1]
+plotshape(
+	 signalS,
+	 title="Regular Bullish Label",
+	 text=" S ",
+	 style=shape.triangleup,
+	 location=location.belowbar,
+	 color=color.new(color.green,60),
+	 textcolor=color.green
+	 )
+
+
+
+// signalR = high[1] > newSupEx[1] and c70[1] < high[1] and c80[1] > close[1] and greenCandle[2] and greenCandle[1] and redCandle
+signalR = high[1] > newSupEx[1] and c70[1] < high[1] and c80[1] > close[1] and (high[1] - close[1]) > (open[1] - low[1])  and redCandle and greenCandle[1]
+plotshape(
+	 signalR,
+	 title="Regular Bullish Label",
+	 text=" R ",
+	 style=shape.triangledown,
+	 location=location.abovebar,
+	 color=color.new(color.red,60),
+	 textcolor=color.red
+	 )
+
+
+//engulfing
+smaLength = input.int(14)
+sma14 = ta.sma(close, smaLength) 
+// greenCandle = open < close
+// redCandle = open > close
+bulishEng = redCandle[1] and high[1] < close and low[1] < sma14 and high < sma14 and myTrendx > high
+bearEng = greenCandle[1] and low[1] > close and high[1] > sma14 and low > sma14 and myTrendx < low
+
+
+
+plotshape(bulishEng, "Bulish Engulf", shape.labelup, location.belowbar, color.new(color.green, 0), 0, "B Eng", color.white,true)
+plotshape(bearEng, "Bear Engulf", shape.labeldown, location.abovebar, color.new(color.red, 0), 0, "R Eng", color.white,true)
+
+
+
+// new Bands
+length = input.int(86, minval=1) //86
+maType = input.string("EMA", "Basis MA Type", options = ["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"])
+src = input(hlc3, title="Source")
+mult = input.float(2.0, minval=0.001, maxval=50, title="StdDev")
+
+basis = ma(src, length, maType)
+
+signalMA = ta.ema(src, 1)
+// plot(signalMA)
+
+// dev1 = 0.382 * ta.stdev(src, length)
+// dev2 = 0.618 * ta.stdev(src, length)
+// dev3 = 0.786 * ta.stdev(src, length)
+// dev4 = 1 * ta.stdev(src, length)
+dev5 = 1.382 * ta.stdev(src, length)
+dev6 = 1.618 * ta.stdev(src, length)
+dev7 = 2 * ta.stdev(src, length)
+// dev8 = 2.382 * ta.stdev(src, length)
+// dev9 = 2.618 * ta.stdev(src, length)
+dev10 = 3 * ta.stdev(src, length)
+
+
+
+// upper1 = basis + dev1
+// lower1 = basis - dev1
+// upper2 = basis + dev2
+// lower2 = basis - dev2
+// upper3 = basis + dev3
+// lower3 = basis - dev3
+// upper4 = basis + dev4
+// lower4 = basis - dev4
+upper5 = basis + dev5
+lower5 = basis - dev5
+upper6 = basis + dev6
+lower6 = basis - dev6
+upper7 = basis + dev7
+lower7 = basis - dev7
+// upper8 = basis + dev8
+// lower8 = basis - dev8
+// upper9 = basis + dev9
+// lower9 = basis - dev9
+upper10 = basis + dev10
+lower10 = basis - dev10
+
+offset = input.int(0, "Offset", minval = -500, maxval = 500)
+
+//Core BackEnd
+var float  xbb = 0
+var float newSupbb = 0
+var float newResbb = 0
+
+if(lower7 > xbb)
+    xbb :=  lower5
+    newSupbb := xbb - dev5
+    newResbb := xbb + dev5
+else if (upper7 < xbb)
+    xbb := upper5
+    newSupbb := xbb - dev5
+    newResbb := xbb + dev5
+
+var float myTrendbb = na
+var float myTrend2bb = na
+var float myTrendxbb = na
+trendColorbb = color.new(color.white,0)
+
+if(newResbb[2] < close[1] and close[1] < close and newRes[2] < close[1])
+
+	myTrendxbb :=  xbb
+    myTrendbb :=  newSupbb 
+	myTrend2bb := newResbb
+	trendColorbb := color.new(color.green,90) 
+
+else if (newSupbb[2] > close[1] and close[1] > close and newSup[2] > close[1]) 
+	myTrendxbb :=  xbb
+    myTrendbb :=  newResbb
+	myTrend2bb :=  newSupbb
+
+	trendColorbb := color.new(color.red,90)
+
+plot(swingTrendOnOff?myTrendbb : na, color = color.new(#5905df, 0))
+plot(swingTrendOnOff?myTrend2bb: na, color = color.new(#5905df, 0))
+
+upTrendbb =    plot(swingTrendOnOff?myTrendxbb:na, "Up Trend",  myTrendxbb > myTrendbb? color.new(color.green, 0):na , style = plot.style_linebr, linewidth = 1)
+downTrendbb =  plot(swingTrendOnOff?myTrendxbb: na, "Down Trend", myTrendxbb < myTrendbb? color.new(color.red, 0):na,   style = plot.style_linebr, linewidth = 1)
+// upTrend2 =    plot(myTrend2, "Up Trend",  srLinesOn? myTrendx > myTrend2? color.new(color.green, 40):na :na, style = plot.style_linebr)
+// downTrend2 =  plot(myTrend2, "Down Trend", srLinesOn? myTrendx < myTrend2? color.new(color.red, 40):na :na,   style = plot.style_linebr)
+// bodyMiddle = plot(barstate.isfirst ? na : myTrendx, "Body Middle",style = plot.style_linebr, color = color.black)
+
+// if(myTrend > myTrend2)
+// 	trendColor := color.new(color.red,90)
+
+// else if (myTrend < myTrend2)
+// 	trendColor := color.new(color.green,90)
+
+// fill(bodyMiddle, upTrend,  trendColor, fillgaps = false)
+// fill(bodyMiddle, downTrend,trendColor, fillgaps = false)
+
+plotshape(buySellSignal?signalMA > upper5 and close > upper6 and close[1] < upper10[1] and greenCandle[1] and redCandle and c70 < high: na , "sell",shape.triangledown,location.abovebar ,color.red, size = size.normal ,text = "Seller", textcolor = color.red)
+plotshape(buySellSignal?signalMA < lower5 and close < lower6 and close[1] > lower10[1] and redCandle[1] and greenCandle and c30 > low: na , "Buy",shape.triangleup,location.belowbar ,color.green, size = size.normal ,text = "Buyer" , textcolor = color.green)
